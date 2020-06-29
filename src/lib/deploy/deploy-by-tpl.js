@@ -13,6 +13,7 @@ const date = require('date-and-time');
 const { deployByRos } = require('./deploy-support-ros');
 const { importService } = require('../import/service');
 const { getProfile, mark } = require('../profile');
+const { executeCheckError } = require('../frameworks/common/exec');
 const { showTipsForNasYml } = require('../build/tips');
 const { green, yellow, red } = require('colors');
 const { displayTriggerInfo } = require('../../lib/trigger');
@@ -496,9 +497,20 @@ async function deployCustomDomain(domainName, domainDefinition, routes) {
   const properties = (domainDefinition.Properties || {});
   const certConfig = properties.CertConfig || {};
   const protocol = properties.Protocol;
-
-  if (_.isEmpty(certConfig) && protocol === 'HTTP,HTTPS') {
+  const isHttps = protocol === 'HTTP,HTTPS';
+  if (_.isEmpty(certConfig) && isHttps) {
     throw new Error(red(`\nMust config "CertConfig" for CustomDomain "${domainName}" when using "HTTP,HTTPS" protocol.\nYou can refer to https://github.com/aliyun/fun/blob/master/docs/specs/2018-04-03-zh-cn.md#aliyunserverlesscustomdomain\nor https://github.com/aliyun/fun/blob/master/docs/specs/2018-04-03.md/#aliyunserverlesscustomdomain for help.`));
+  }
+  if (isHttps) {
+    const { error, stdout } = await executeCheckError({
+      cmd: `openssl x509 -noout -enddate -in ${certConfig.Certificate}`,
+      errorCallback: err => err.code !== 1
+    });
+    if (error) {
+      console.log(yellow('\nOpenSSL is not detected and the expiration time cannot be detected'));
+    } else if (new Date(stdout) <= new Date()) {
+      throw new Error(red('The certificate has expired.'));
+    }
   }
   if (!_.isEmpty(certConfig) && protocol === 'HTTP') {
     throw new Error(red(`\nPlease don't use "CertConfig" config of CustomDomain "${domainName}" when using "HTTP" protocol.\nYou can refer to https://github.com/aliyun/fun/blob/master/docs/specs/2018-04-03-zh-cn.md#aliyunserverlesscustomdomain\nor https://github.com/aliyun/fun/blob/master/docs/specs/2018-04-03.md/#aliyunserverlesscustomdomain for help.`));
