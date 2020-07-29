@@ -41,12 +41,8 @@ while true; do
     --http ) HTTP_MODE=true; shift ;;
     --event-decode ) EVENT_DECODE=true; shift ;; 
     --server) SERVER_MODE=true; shift ;;
-<<<<<<< HEAD
     --stdin ) shift;;
     -- ) shift; break ;;
-=======
-    -- | --stdin ) shift; break ;;
->>>>>>> debugger
     "" ) break ;;
     * ) echo -e "\n\t Please use the long and short parameter mode. \n\t For more details, please refer to https://github.com/aliyun/fc-docker. \n\n"; exit -1 ;;
   esac

@@ -4,6 +4,7 @@ const fc = require('../../fc');
 const debug = require('debug')('fun:local');
 const HttpInvoke = require('../../local/http-invoke');
 const ApiInvoke = require('../../local/api-invoke');
+const LocalHttpInvoke = require('../../local/nodejs-start');
 
 const { ensureTmpDir } = require('../../utils/path');
 const { setCORSHeaders } = require('../../cors');
@@ -19,14 +20,14 @@ function printHttpTriggerTips(serverPort, serviceName, functionName, triggerName
   console.log(`\tauthType: ` + yellow(authType));
 }
 
-async function registerHttpTriggers(app, router, serverPort, httpTriggers, debugPort, debugIde, baseDir, debuggerPath, debugArgs, nasBaseDir, tplPath) {
+async function registerHttpTriggers(app, router, serverPort, httpTriggers, debugPort, debugIde, baseDir, debuggerPath, debugArgs, nasBaseDir, tplPath, notDocker) {
   for (let httpTrigger of httpTriggers) {
-    await registerSingleHttpTrigger(app, router, serverPort, httpTrigger, debugPort, debugIde, baseDir, false, debuggerPath, debugArgs, nasBaseDir, tplPath);
+    await registerSingleHttpTrigger(app, router, serverPort, httpTrigger, debugPort, debugIde, baseDir, false, debuggerPath, debugArgs, nasBaseDir, tplPath, notDocker);
   }
   console.log();
 }
 
-async function registerSingleHttpTrigger(app, router, serverPort, httpTrigger, debugPort, debugIde, baseDir, eager = false, debuggerPath, debugArgs, nasBaseDir, tplPath) {
+async function registerSingleHttpTrigger(app, router, serverPort, httpTrigger, debugPort, debugIde, baseDir, eager = false, debuggerPath, debugArgs, nasBaseDir, tplPath, notDocker) {
   const { serviceName, serviceRes,
     functionName, functionRes,
     triggerName, triggerRes, path, domainName } = httpTrigger;
@@ -64,8 +65,14 @@ async function registerSingleHttpTrigger(app, router, serverPort, httpTrigger, d
 
   const tmpDir = await ensureTmpDir(null, tplPath, serviceName, functionName);
 
-  const httpInvoke = new HttpInvoke(serviceName, serviceRes, functionName, functionRes, debugPort, debugIde, baseDir, tmpDir, authType, endpointPrefix, debuggerPath, debugArgs, nasBaseDir);
-  if (eager) {
+  let httpInvoke;
+  if (notDocker) {
+    httpInvoke = new LocalHttpInvoke(serviceName, serviceRes, functionName, functionRes, debugPort, debugIde, baseDir, tmpDir, authType, endpointPrefix, debuggerPath, debugArgs, nasBaseDir);
+  } else {
+    httpInvoke = new HttpInvoke(serviceName, serviceRes, functionName, functionRes, debugPort, debugIde, baseDir, tmpDir, authType, endpointPrefix, debuggerPath, debugArgs, nasBaseDir);
+  }
+
+  if (eager && !notDocker) {
     await httpInvoke.initAndStartRunner();
   }
   app.use(setCORSHeaders);
@@ -77,7 +84,11 @@ async function registerSingleHttpTrigger(app, router, serverPort, httpTrigger, d
         res.status(403).send('websocket not support');
         return;
       }
-      await httpInvoke.invoke(req, res);
+      if (notDocker) {
+        await httpInvoke.localInvoke(req, res);
+      } else {
+        await httpInvoke.invoke(req, res);
+      }
     });
   }
   printHttpTriggerTips(serverPort, serviceName, functionName, triggerName, endpointForDisplay, httpMethods, authType, domainName);

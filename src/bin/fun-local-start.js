@@ -31,6 +31,7 @@ program
     'Select which IDE to use when debugging and output related debug config tips for the IDE. Options：\'vscode\', \'pycharm\'')
   .option('--debugger-path <debuggerPath>', 'The path of the debugger on the host')
   .option('--debug-args <debugArgs>', 'Additional parameters that will be passed to the debugger')
+  .option('-nd, --not-docker', 'Use docker container to build functions')
   .parse(process.argv);
 
 if (program.args.length > 1) {

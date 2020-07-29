@@ -6,25 +6,7 @@ const docker = require('../docker');
 const { generateVscodeDebugConfig } = require('../debug');
 const fs = require('fs');
 const { execSync, spawnSync, spawn } = require('child_process');
-
-const nodejsTgzUrl = {
-  nodejs12: {
-    url: 'https://fc-docker.oss-cn-shanghai.aliyuncs.com/nodejs12.tgz',
-    folder: 'nodejs12',
-  },
-  nodejs10: {
-    url: 'https://my-fc-testt.oss-cn-shanghai.aliyuncs.com/nodejs10.tgz',
-    folder: 'nodejs10',
-  },
-  nodejs8: {
-    url: 'https://my-fc-testt.oss-cn-shanghai.aliyuncs.com/nodejs6.tgz',
-    folder: 'nodejs6',
-  },
-  nodejs6: {
-    url: 'https://my-fc-testt.oss-cn-shanghai.aliyuncs.com/nodejs6.tgz',
-    folder: 'nodejs6',
-  },
-}
+const { nodejsTgzUrl } = require('../utils/path');
 
 class LocalInvoke {
   constructor(serviceName, serviceRes, functionName, functionRes, debugPort, debugIde, baseDir, tmpDir, debuggerPath, debugArgs, nasBaseDir) {

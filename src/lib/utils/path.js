@@ -42,4 +42,24 @@ async function generateRandomZipPath(zipName = 'code.zip') {
   };
 }
 
-module.exports = { ensureTmpDir, generateRandomZipPath };
+
+const nodejsTgzUrl = {
+  nodejs12: {
+    url: 'https://fc-docker.oss-cn-shanghai.aliyuncs.com/nodejs12.tgz',
+    folder: 'nodejs12',
+  },
+  nodejs10: {
+    url: 'https://my-fc-testt.oss-cn-shanghai.aliyuncs.com/nodejs10.tgz',
+    folder: 'nodejs10',
+  },
+  nodejs8: {
+    url: 'https://my-fc-testt.oss-cn-shanghai.aliyuncs.com/nodejs6.tgz',
+    folder: 'nodejs6',
+  },
+  nodejs6: {
+    url: 'https://my-fc-testt.oss-cn-shanghai.aliyuncs.com/nodejs6.tgz',
+    folder: 'nodejs6',
+  },
+}
+
+module.exports = { ensureTmpDir, generateRandomZipPath, nodejsTgzUrl };

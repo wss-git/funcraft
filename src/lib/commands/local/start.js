@@ -193,6 +193,7 @@ async function start(options, invokeName = '') {
   const debuggerPath = options.debuggerPath;
   const debugArgs = options.debugArgs;
   const baseDir = path.dirname(tplPath);
+  const notDocker = options.notDocker;
 
   await ensureFilesModified(tplPath);
 
@@ -235,8 +236,7 @@ async function start(options, invokeName = '') {
       if (httpTrigger.length > 1) {
         throw new Error(`${invokeName} is not unique`);
       }
-
-      await httpSupport.registerSingleHttpTrigger(app, router, serverPort, httpTrigger[0], debugPort, debugIde, baseDir, true, debuggerPath, debugArgs, nasBaseDir, tplPath);
+      await httpSupport.registerSingleHttpTrigger(app, router, serverPort, httpTrigger[0], debugPort, debugIde, baseDir, true, debuggerPath, debugArgs, nasBaseDir, tplPath, notDocker);
       startExpress(app);
       return;
     }
@@ -255,9 +255,9 @@ async function start(options, invokeName = '') {
       debugFunction = httpTriggers;
     }
 
-    await httpSupport.registerSingleHttpTrigger(app, router, serverPort, debugFunction[0], debugPort, debugIde, baseDir, true, debuggerPath, debugArgs, nasBaseDir, tplPath);
+    await httpSupport.registerSingleHttpTrigger(app, router, serverPort, debugFunction[0], debugPort, debugIde, baseDir, true, debuggerPath, debugArgs, nasBaseDir, tplPath, notDocker);
   } else {
-    await httpSupport.registerHttpTriggers(app, router, serverPort, httpTriggers, debugPort, debugIde, baseDir, debuggerPath, debugArgs, nasBaseDir, tplPath);
+    await httpSupport.registerHttpTriggers(app, router, serverPort, httpTriggers, debugPort, debugIde, baseDir, debuggerPath, debugArgs, nasBaseDir, tplPath, notDocker);
   }
 
   if (_.isEmpty(routes)) { await registerApis(tpl, app, serverPort, debugPort, debugIde, baseDir, debuggerPath, debugArgs, nasBaseDir, tplPath); }
