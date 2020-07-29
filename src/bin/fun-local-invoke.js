@@ -28,6 +28,7 @@ parameter.`)
   .option('-d, --debug-port <port>',
     `Specify the sandboxed container starting in debug mode, and exposing this port on localhost
   `)
+  .option('-nd, --not-docker', 'Use docker container to build functions')
 
   .option('--no-reuse', `Do not reuse the container which was started by the 'fun local start {service}/{function}' command.`)
   .option('--tmp-dir <tmpDir>', `The temp directory mounted to /tmp , default to './.fun/tmp/invoke/{service}/{function}/'`)

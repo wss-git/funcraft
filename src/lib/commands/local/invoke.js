@@ -99,6 +99,20 @@ async function invoke(invokeName, options) {
 
   debug(`The temp directory mounted to /tmp is ${absTmpDir || 'null'}`);
 
+  if (options.notDocker && runtime.includes('nodejs')) {
+    const LocalInvoke = require('../../local/nodejs-invoke');
+    const localInvoke = new LocalInvoke(
+      serviceName, serviceRes,
+      functionName, functionRes,
+      debugPort, debugIde,
+      baseDir, absTmpDir,
+      debuggerPath, debugArgs,
+      reuse, nasBaseDir
+    );
+    await localInvoke.init(event);
+    return;
+  }
+
   // Lazy loading to avoid stdin being taken over twice.
   const LocalInvoke = require('../../local/local-invoke');
   const localInvoke = new LocalInvoke(
