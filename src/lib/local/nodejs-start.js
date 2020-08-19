@@ -2,17 +2,20 @@ var AsyncLock = require('async-lock');
 var lock = new AsyncLock();
 const path = require('path');
 const fs = require('fs-extra');
-const streams = require('memory-streams');
 const { getHttpRawBody, generateHttpParams, parseHttpTriggerHeaders, validateHeader } = require('../local/http');
 const docker = require('../docker');
 const dockerOpts = require('../docker-opts');
-const { validateSignature, parseOutputStream } = require('./http');
+const { validateSignature } = require('./http');
 const definition = require('../definition');
 const extract = require('extract-zip');
-const { execSync, spawnSync } = require('child_process');
+const { parseHeaders, parseStatusLine } = require('http-string-parser');
+const { execSync, spawnSync, spawn } = require('child_process');
 const { nodejsTgzUrl } = require('../utils/path');
 
 const _ = require('lodash');
+function is2xxStatusCode(statusCode) {
+  return statusCode && statusCode.startsWith('2');
+}
 
 function isZipArchive(codeUri) {
   return codeUri.endsWith('.zip') || codeUri.endsWith('.jar') || codeUri.endsWith('.war');
@@ -87,9 +90,12 @@ class LocalHttpInvoke {
     this.mounts = allMount;
 
     const shUir = path.resolve(process.cwd(), '.fun');
-    execSync(`cp -rf ${path.resolve(__dirname, '../../script/function-compute-mock.sh')} ${shUir}/function-compute-mock.sh && chmod 777 *.sh`, {
-      cwd: shUir
-    })
+    if (!fs.existsSync(`${shUir}/function-compute-mock.sh`)) {
+      await fs.writeFileSync(`${shUir}/function-compute-mock.sh`, require('./shFile/function-compute-mock'));
+      execSync('chmod 777 *.sh', {
+        cwd: shUir
+      })
+    }
   }
 
   async localInvoke(req, res) {
@@ -108,7 +114,8 @@ class LocalHttpInvoke {
 
       const shUir = path.resolve(process.cwd(), '.fun');
       if (!fs.existsSync(`${shUir}/var/fc/runtime/${nodejsTgzUrl[this.runtime].folder}/agent.sh`)) {
-        envs.AGENTDIR = path.resolve(__dirname, '../../script/agent.sh');
+        await fs.writeFileSync(`${shUir}/agent.sh`, require('./shFile/agent'));
+        envs.AGENTDIR = `${shUir}/agent.sh`;
         envs.TGZURL = nodejsTgzUrl[this.runtime].url;
       }
 
@@ -119,10 +126,102 @@ class LocalHttpInvoke {
         await docker.showDebugIdeTipsForVscode(this.serviceName, this.functionName, this.runtime, codeMount.Source, this.debugPort);
       }
 
-      spawnSync('./.fun/function-compute-mock.sh', cmd, {
+      const container = spawn('./.fun/function-compute-mock.sh', cmd, {
         cwd: process.cwd(),
         env: envs,
-        stdio: 'inherit'
+        // stdio: 'inherit'
+      });
+      let isBegin = false;
+      let responseString = '';
+
+      container.stderr.on('data', (d) => {
+        const data = d.toString();
+        if (data.includes('Debugger')) {
+          console.log(data);
+        } else {
+          isBegin = false;
+          responseString = '';
+          res.send(data);
+        }
+      });
+
+      container.stdout.on('data', (d) => {
+        const str = d.toString();
+        if (str.includes('-----BEGIN-----')) {
+          isBegin = true;
+          responseString = '';
+        } else if (!isBegin) {
+          responseString = '';
+          console.log(str);
+        } else if (isBegin && !str.includes('-----END-----')) {
+          responseString += str;
+        } else if (isBegin){
+          isBegin = false;
+          responseString += str.replace('-----END-----', '');
+          const response = {};
+          const lines = responseString.split(/\r\n/);
+          responseString = '';
+          const parsedStatusLine = parseStatusLine(lines.shift());
+          response['protocolVersion'] = parsedStatusLine['protocol'];
+          response['statusCode'] = parsedStatusLine['statusCode'];
+          response['statusMessage'] = parsedStatusLine['statusMessage'];
+          const headerLines = [];
+          while (lines.length > 0) {
+            const line = lines.shift();
+            if (line === '') {
+              break;
+            }
+            headerLines.push(line);
+          }
+          response['headers'] = parseHeaders(headerLines);
+          response['body'] = lines.join('\r\n');
+          
+          const { statusCode, headers, body } = response;
+
+          if (this.runtime === 'custom') {
+            res.status(statusCode);
+            res.set(headers);
+            res.send(body);
+          } else {
+            if (is2xxStatusCode(statusCode)) {
+              const FC_HTTP_PARAMS = 'x-fc-http-params';
+              const base64HttpParams = headers[FC_HTTP_PARAMS];
+
+              const httpParams = parseHttpTriggerHeaders(base64HttpParams) || {};
+
+              res.status(httpParams.status || statusCode);
+
+              const httpParamsHeaders = httpParams.headersMap || httpParams.headers || headers;
+              for (const headerKey in httpParamsHeaders) {
+                if (!{}.hasOwnProperty.call(httpParamsHeaders, headerKey)) { continue; }
+
+                const headerValue = httpParamsHeaders[headerKey];
+
+                if (validateHeader(headerKey, headerValue)) {
+                  res.setHeader(headerKey, headerValue);
+                }
+              }
+              res.send(body);
+            } else {
+              res.status(statusCode || 500);
+              res.setHeader('Content-Type', 'application/json');
+      
+              if (body) {
+                res.send(body);
+              } else {
+                res.send({
+                  'errorMessage': `Process exited unexpectedly before completing request.`
+                });
+              }
+            }
+          }
+        }
+      });
+
+      container.stdout.on('close', (e) => {
+        responseString = '';
+        isBegin = false;
+        console.log('结束了', e)
       })
     });
   }

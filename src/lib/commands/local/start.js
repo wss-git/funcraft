@@ -193,7 +193,7 @@ async function start(options, invokeName = '') {
   const debuggerPath = options.debuggerPath;
   const debugArgs = options.debugArgs;
   const baseDir = path.dirname(tplPath);
-  const notDocker = options.notDocker;
+  const notDocker = !options.docker;
 
   await ensureFilesModified(tplPath);
 

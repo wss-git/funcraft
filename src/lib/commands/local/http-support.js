@@ -20,14 +20,14 @@ function printHttpTriggerTips(serverPort, serviceName, functionName, triggerName
   console.log(`\tauthType: ` + yellow(authType));
 }
 
-async function registerHttpTriggers(app, router, serverPort, httpTriggers, debugPort, debugIde, baseDir, debuggerPath, debugArgs, nasBaseDir, tplPath, notDocker) {
+async function registerHttpTriggers(app, router, serverPort, httpTriggers, debugPort, debugIde, baseDir, debuggerPath, debugArgs, nasBaseDir, tplPath, noDocker) {
   for (let httpTrigger of httpTriggers) {
-    await registerSingleHttpTrigger(app, router, serverPort, httpTrigger, debugPort, debugIde, baseDir, false, debuggerPath, debugArgs, nasBaseDir, tplPath, notDocker);
+    await registerSingleHttpTrigger(app, router, serverPort, httpTrigger, debugPort, debugIde, baseDir, false, debuggerPath, debugArgs, nasBaseDir, tplPath, noDocker);
   }
   console.log();
 }
 
-async function registerSingleHttpTrigger(app, router, serverPort, httpTrigger, debugPort, debugIde, baseDir, eager = false, debuggerPath, debugArgs, nasBaseDir, tplPath, notDocker) {
+async function registerSingleHttpTrigger(app, router, serverPort, httpTrigger, debugPort, debugIde, baseDir, eager = false, debuggerPath, debugArgs, nasBaseDir, tplPath, noDocker) {
   const { serviceName, serviceRes,
     functionName, functionRes,
     triggerName, triggerRes, path, domainName } = httpTrigger;
@@ -66,13 +66,13 @@ async function registerSingleHttpTrigger(app, router, serverPort, httpTrigger, d
   const tmpDir = await ensureTmpDir(null, tplPath, serviceName, functionName);
 
   let httpInvoke;
-  if (notDocker) {
+  if (noDocker) {
     httpInvoke = new LocalHttpInvoke(serviceName, serviceRes, functionName, functionRes, debugPort, debugIde, baseDir, tmpDir, authType, endpointPrefix, debuggerPath, debugArgs, nasBaseDir);
   } else {
     httpInvoke = new HttpInvoke(serviceName, serviceRes, functionName, functionRes, debugPort, debugIde, baseDir, tmpDir, authType, endpointPrefix, debuggerPath, debugArgs, nasBaseDir);
   }
 
-  if (eager && !notDocker) {
+  if (eager && !noDocker) {
     await httpInvoke.initAndStartRunner();
   }
   app.use(setCORSHeaders);
@@ -84,7 +84,7 @@ async function registerSingleHttpTrigger(app, router, serverPort, httpTrigger, d
         res.status(403).send('websocket not support');
         return;
       }
-      if (notDocker) {
+      if (noDocker) {
         await httpInvoke.localInvoke(req, res);
       } else {
         await httpInvoke.invoke(req, res);

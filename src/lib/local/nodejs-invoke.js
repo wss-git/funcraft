@@ -8,6 +8,9 @@ const fs = require('fs');
 const { execSync, spawnSync, spawn } = require('child_process');
 const { nodejsTgzUrl } = require('../utils/path');
 
+const invokeNotDocker = require('./invoke-not-docker');
+const os = require('os')
+
 class LocalInvoke {
   constructor(serviceName, serviceRes, functionName, functionRes, debugPort, debugIde, baseDir, tmpDir, debuggerPath, debugArgs, nasBaseDir) {
     this.serviceName = serviceName;
@@ -30,7 +33,7 @@ class LocalInvoke {
   async init(event = '') {
     this.envs = await docker.generateDockerEnvs(this.baseDir, this.serviceName, this.serviceRes.Properties, this.functionName, this.functionProps, this.debugPort, null, this.nasConfig, false, this.debugIde, this.debugArgs);
     this.cmd = docker.generateDockerCmd(this.functionProps, false);
-    
+    const isWin = process.platform === 'win32';
 
     if(this.debugPort && this.debugIde) {
       const codeMount = await docker.resolveCodeUriToMount(this.codeUri, false);
@@ -40,20 +43,42 @@ class LocalInvoke {
       console.log(JSON.stringify(vscodeDebugConfig, null, 4));
       console.log('///////////////// config end /////////////////');
     }
-
     const shUir = path.resolve(process.cwd(), '.fun');
-    execSync(`cp -rf ${path.resolve(__dirname, '../../script/function-compute-mock.sh')} ${shUir}/function-compute-mock.sh && chmod 777 *.sh`, {
-      cwd: shUir
-    })
+    if (isWin) {
+      const configDir = path.join(process.env.HOME || os.homedir(), '.fcli');
+      const { folder } = nodejsTgzUrl[this.runtime];
+      
+      await invokeNotDocker.downloadFile({ runtime: this.runtime });
+      const LOG_PATH = `${configDir}/${folder}/var/log`;
+      await invokeNotDocker.invoke({
+        LOG_PATH,
+        servicePath: `${configDir}/${folder}/src/server.js`,
+        env: this.envs,
+        codeUri: this.codeUri,
+        event,
+        kill9000Path: `${configDir}/${this.runtime}/kill9000.bat`,
+      })
+      // await invokeNotDocker.httprequest(this.envs)
+      return;
+    }
+
+    
+    if (!fs.existsSync(`${shUir}/function-compute-mock.sh`)) {
+      await fs.writeFileSync(`${shUir}/function-compute-mock.sh`, require('./shFile/function-compute-mock'));
+      execSync('chmod 777 *.sh', {
+        cwd: shUir
+      })
+    }
 
     if (!fs.existsSync(`${shUir}/var/fc/runtime/${nodejsTgzUrl[this.runtime].folder}/agent.sh`)) {
-      this.envs.AGENTDIR = path.resolve(__dirname, '../../script/agent.sh');
+      await fs.writeFileSync(`${shUir}/agent.sh`, require('./shFile/agent'));
+      this.envs.AGENTDIR = `${shUir}/agent.sh`;
       this.envs.TGZURL = nodejsTgzUrl[this.runtime].url;
     }
 
     this.envs.FC_RUNTIME_FOLDER = nodejsTgzUrl[this.runtime].folder;
 
-    spawnSync('./.fun/function-compute-mock.sh', ['--event', event , ...this.cmd], {
+    spawnSync('./.fun/function-compute-mock.sh', ['--event', event, ...this.cmd], {
       cwd: process.cwd(),
       env: this.envs,
       stdio: 'inherit'
